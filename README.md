@@ -1,221 +1,146 @@
-# Hardware-Inspired Secure Storage Using Software-Based Trust Architecture
+# Virtual HSM — Hardware Security Module Simulation
+
+A **Virtual Hardware Security Module (HSM)** that simulates real HSM behavior where cryptographic keys never leave the module boundary and applications request cryptographic operations through a secure API.
+
+> Built for security hackathon demonstrations.
+
+---
 
 ## Overview
 
-This project implements a **secure storage system inspired by hardware security modules (TPM/HSM)** using a **software-based trust architecture**.
-The goal is to demonstrate how secure key management, encrypted storage, and firmware integrity verification can be implemented without dedicated hardware.
+A Hardware Security Module is a dedicated hardware device for managing cryptographic keys and performing crypto operations. This project simulates that architecture in software:
 
-The system protects sensitive information such as **cryptographic keys, API tokens, and firmware data** by encrypting them and storing them inside a secure vault.
-
-This project was developed for the **SanDisk Hackathon – FUTURE-X Team**.
+- **Keys never leave the HSM** — only operation results (ciphertext, signatures) are returned
+- **All crypto operations** happen inside the module boundary
+- **Policy engine** controls which operations are permitted
+- **Authentication** is required before accessing any HSM function
 
 ---
 
-# System Architecture
+## Architecture
 
 ```
-                User / Application
-                        │
-                        ▼
-                CLI Interface (main.py)
-                        │
-                        ▼
-                Authentication Module
-                   (auth.py)
-                        │
-                        ▼
-                 Root of Trust
-               (root_of_trust.py)
-                        │
-                        ▼
-                 Crypto Engine
-               (crypto_engine.py)
-                        │
-                        ▼
-                 Secure Vault
-               (secure_vault.py)
-                        │
-                        ▼
-                 Encrypted Storage
-                storage/vault.enc
-```
-
-Additional module:
-
-```
-firmware_check.py → Firmware integrity verification
+Application / CLI (main.py)
+        ↓
+   HSM Core (hsm_core.py)
+        ├── Authentication    (auth.py)
+        ├── Policy Engine     (policy_engine.py)
+        ├── Key Manager       (key_manager.py)
+        └── Crypto Service    (crypto_service.py)
+              ↓
+      Secure Key Store (storage/keys.db)
 ```
 
 ---
 
-# Features
-
-* Secure authentication using **SHA-256 password hashing**
-* **AES-256 encryption** for secure data storage
-* Software-based **Root of Trust**
-* **Encrypted secret vault**
-* **Firmware integrity verification using SHA-256**
-* Secure key generation and management
-
----
-
-# Project Structure
+## Project Structure
 
 ```
-secure_storage_system/
-
-auth.py
-crypto_engine.py
-firmware_check.py
-main.py
-root_of_trust.py
-secure_vault.py
-
-keys/
-   master.key
-
-storage/
-   vault.enc
-   firmware.bin
+virtual-hsm/
+├── README.md
+├── requirements.txt
+├── .gitignore
+│
+├── virtual_hsm/
+│   ├── __init__.py
+│   ├── main.py              # CLI interface
+│   ├── hsm_core.py          # Central HSM controller
+│   ├── auth.py              # SHA-256 authentication
+│   ├── key_manager.py       # Key generation & storage
+│   ├── crypto_service.py    # AES-GCM & RSA-PSS operations
+│   ├── policy_engine.py     # Operation policy rules
+│   │
+│   └── storage/
+│       └── keys.db          # SQLite key store (auto-created)
+│
+└── .venv/
 ```
 
 ---
 
-# Module Description
+## Modules
 
-### main.py
-
-Entry point of the system.
-Provides the CLI interface for storing and retrieving secrets.
-
-### auth.py
-
-Handles system authentication using SHA-256 hashed passwords.
-
-### crypto_engine.py
-
-Implements encryption and decryption using the **cryptography** library.
-
-### secure_vault.py
-
-Manages secure storage and retrieval of encrypted secrets.
-
-### root_of_trust.py
-
-Implements a basic root-of-trust verification system.
-
-### firmware_check.py
-
-Simulates firmware integrity verification using SHA-256 hashing.
+| Module | Responsibility |
+|--------|---------------|
+| `auth.py` | SHA-256 password authentication with 3-attempt lockout |
+| `key_manager.py` | AES-256 / RSA-2048 key generation, SQLite storage |
+| `crypto_service.py` | AES-GCM encrypt/decrypt, RSA-PSS sign/verify |
+| `policy_engine.py` | Rule-based operation access control |
+| `hsm_core.py` | Central controller — enforces policy, delegates operations |
+| `main.py` | Interactive CLI menu |
 
 ---
 
-# Installation
+## Installation
 
-### 1. Clone or download the project
+```bash
+# Clone the repository
+git clone https://github.com/ShadowTracker13/secure-vault.git
+cd secure-vault
 
-```
-git clone <repository-url>
-cd secure_storage_system
-```
-
-### 2. Create a virtual environment
-
-```
+# Create virtual environment
 python3 -m venv .venv
-```
-
-### 3. Activate the virtual environment
-
-Mac/Linux
-
-```
 source .venv/bin/activate
-```
 
-Windows
-
-```
-.venv\Scripts\activate
-```
-
-### 4. Install dependencies
-
-```
-pip install cryptography
+# Install dependencies
+pip install -r requirements.txt
 ```
 
 ---
 
-# Running the Project
+## Usage
 
-Run the program using:
-
-```
-python main.py
+```bash
+python -m virtual_hsm.main
 ```
 
-Example output:
+**Default password:** `admin123`
+
+### CLI Menu
 
 ```
-Enter system password: admin123
+Virtual HSM System
 
-Secure Storage System
-1 Store Secret
-2 Retrieve Secret
-3 Exit
+  1 │ Generate AES Key
+  2 │ Generate RSA Key
+  3 │ Encrypt Data
+  4 │ Decrypt Data
+  5 │ Sign Data
+  6 │ Verify Signature
+  7 │ Exit
 ```
 
----
+### Demo Workflow
 
-# Usage
-
-### Store Secret
-
-Encrypts sensitive data and stores it securely in the encrypted vault.
-
-### Retrieve Secret
-
-Decrypts and retrieves stored data from the secure vault.
+1. **Start** → Authenticate with password
+2. **Generate AES Key** → Receive key ID (key material stays sealed)
+3. **Encrypt Data** → Provide key ID + plaintext → Get ciphertext
+4. **Decrypt Data** → Provide key ID + ciphertext → Get plaintext
+5. **Generate RSA Key** → Receive key ID
+6. **Sign Data** → Provide key ID + data → Get signature
+7. **Verify Signature** → Provide key ID + data + signature → Get result
 
 ---
 
-# Security Concepts Demonstrated
+## Security Model
 
-* Secure password hashing
-* Encryption-based secure storage
-* Software-based trust architecture
-* Firmware integrity verification
-* Secure key management
-
----
-
-# Example Use Cases
-
-* Secure storage for IoT devices
-* Embedded system firmware protection
-* Secure key storage
-* Cloud edge device security
+- 🔒 **Keys never leave the HSM** — only key IDs are returned to the user
+- 🔐 **AES-256-GCM** for authenticated encryption
+- ✍️ **RSA-2048 PSS** for digital signatures
+- 🛡️ **Policy engine** prevents unauthorized operations
+- 🔑 **SQLite key store** — keys stored as BLOBs, never printed
 
 ---
 
-# Future Improvements
+## Technologies
 
-* Hardware-backed key storage
-* Secure enclave simulation
-* Device binding and key sealing
-* Secure boot implementation
-* Remote attestation
-
----
-
-# Team
-
-**Team Name:** FUTURE-X
-**Hackathon:** SanDisk Hackathon
+- Python 3
+- `cryptography` — AES-GCM, RSA-PSS
+- `sqlite3` — Secure key storage
+- `hashlib` — SHA-256 authentication
 
 ---
 
-# License
+## License
 
-This project is intended for **educational and research purposes**.
+MIT
